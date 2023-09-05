@@ -2,213 +2,31 @@ import os
 import random
 import math
 import pygame
+from components.reset_game import reset_game
+from components.load_sprites import load_sprite_sheets
+from components.get_block import get_block
+from components.create_objects import create_objects
+from Classes.object import Object, Block
+from Classes.traps import Fire, Spikes
+from Classes.points import Point
+from Classes.checkpoint import Checkpoint
+from Classes.custom_timer import Timer
+from Classes.startpage import StartPage
 from os import listdir
 from os.path import isfile, join
 pygame.init()
-
+twoBitFont = os.path.join(os.path.dirname(__file__), "Classes", "fonts", "PressStart2P-Regular.ttf")
 
 # Set up the display
 pygame.display.set_caption("Platformer")
 WIDTH, HEIGHT = 1000, 800
 FPS = 60
-PLAYER_VEL = 5
-
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 
-
-# Function to flip sprites horizontally
-def flip(sprites):
-    return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
-
-
-# Load sprite sheets from directories
-def load_sprite_sheets(dir1, dir2, width, height, direction=False):
-    path = join("assets", dir1, dir2)
-    images = [f for f in listdir(path) if isfile(join(path, f))]
-
-    all_sprites = {}
-
-    for image in images:
-        sprite_sheet = pygame.image.load(join(path, image)).convert_alpha()
-
-        sprites = []
-        for i in range(sprite_sheet.get_width() // width):
-            surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
-            rect = pygame.Rect(i * width, 0, width, height)
-            surface.blit(sprite_sheet, (0, 0), rect)
-            sprites.append(pygame.transform.scale2x(surface))
-
-        # Store sprites for different directions
-        if direction:
-            all_sprites[image.replace(".png", "") + "_right"] = sprites
-            all_sprites[image.replace(".png", "") + "_left"] = flip(sprites)
-        else:
-            all_sprites[image.replace(".png", "")] = sprites
-
-    return all_sprites
-
-
-# Function to get block sprite
-def get_block(size):
-    path = join("assets", "Terrain", "Terrain.png")
-    image = pygame.image.load(path).convert_alpha()
-    surface = pygame.Surface((size, size), pygame.SRCALPHA, 32)
-    rect = pygame.Rect(0, 0, size, size)
-    surface.blit(image, (0, 0), rect)
-    return pygame.transform.scale2x(surface)
-
-
-#Class to represent Player
-class Player(pygame.sprite.Sprite):
-    COLOR = (255, 0, 0)
-    GRAVITY = 2
-    SPRITES = load_sprite_sheets("MainCharacters", "MaskDude", 32, 32, True)
-    ANIMATION_DELAY = 3
-
-    def __init__(self, x, y, width, height):
-        super().__init__()
-        self.rect = pygame.Rect(x, y, width, height)
-        self.x_vel = 0
-        self.y_vel = 0
-        self.mask = None
-        self.direction = "left"
-        self.animation_count = 0
-        self.fall_count = 0
-        self.jump_count = 0
-        self.hit = False
-        self.hit_count = 0
-
-    def jump(self):
-        self.y_vel = -self.GRAVITY * 5
-        self.animation_count = 0
-        self.jump_count += 1
-        if self.jump_count == 1:
-            self.fall_count = 0
-
-    def move(self, dx, dy):
-        self.rect.x += dx 
-        self.rect.y += dy
-
-    def make_hit(self):
-        self.hit = True
-
-    def move_left(self, vel):
-        self.x_vel = -vel * 2
-        if self.direction != "left":
-            self.direction = "left"
-            self.animation_count = 0
-
-    def move_right(self, vel):
-        self.x_vel = vel * 2
-        if self.direction != "right":
-            self.direction = "right"
-            self.animation_count = 0
-
-    def loop(self, fps):
-        self.y_vel += min(1, (self.fall_count / fps) * self.GRAVITY)
-        self.move(self.x_vel, self.y_vel)
-
-        if self.hit:
-            self.hit_count += 1
-        if self.hit_count > fps * 2:
-            self.hit = False
-            self.hit_count = 0
-
-        self.fall_count += 1
-        self.update_sprite()
-
-    def landed(self):
-        self.fall_count = 0
-        self.y_vel = 0
-        self.jump_count = 0
-
-    def hit_head(self):
-        self.count = 0
-        self.y_vel *= -1
-
-    def update_sprite(self):
-        sprite_sheet = "idle"
-        if self.hit:
-            sprite_sheet = "hit"
-        elif self.y_vel < 0:
-            if self.jump_count == 1:
-                sprite_sheet = "jump"
-            elif self.jump_count == 2:
-                sprite_sheet = "double_jump"
-        elif self.y_vel > self.GRAVITY * 2:
-            sprite_sheet = "fall"
-        elif self.x_vel != 0:
-            sprite_sheet = "run"
-
-        sprite_sheet_name = sprite_sheet + "_" + self.direction
-        sprites = self.SPRITES[sprite_sheet_name]
-        sprite_index = (self.animation_count //
-                        self.ANIMATION_DELAY) % len(sprites)
-        self.sprite = sprites[sprite_index]
-        self.animation_count += 1
-        self.update()
-
-    def update(self):
-        self.rect = self.sprite.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.sprite)
-
-    def draw(self, win, offset_x):
-        win.blit(self.sprite, (self.rect.x - offset_x, self.rect.y))
-
-
-# Class to represent objects in the game
-class Object(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height, name=None):
-        super().__init__()
-        self.rect = pygame.Rect(x, y, width, height)
-        self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        self.width = width
-        self.height = height
-        self.name = name
-
-    def draw(self, win, offset_x):
-        win.blit(self.image, (self.rect.x - offset_x, self.rect.y))
-
-
-# Class to represent blocks in the game
-class Block(Object):
-    def __init__(self, x, y, size):
-        super().__init__(x, y, size, size)
-        block = get_block(size)
-        self.image.blit(block, (0, 0))
-        self.mask = pygame.mask.from_surface(self.image)
-
-
-# Class to represent fire traps in the game
-class Fire(Object):
-    ANIMATION_DELAY = 3
-
-    def __init__(self, x, y, width, height):
-        super().__init__(x, y, width, height, "fire")
-        self.fire = load_sprite_sheets("Traps", "Fire", width, height)
-        self.image = self.fire["off"][0]
-        self.mask = pygame.mask.from_surface(self.image)
-        self.animation_count = 0
-        self.animation_name = "off"
-
-    def on(self):
-        self.animation_name = "on"
-
-    def off(self):
-        self.animation_name = "off"
-
-    def loop(self):
-        sprites = self.fire[self.animation_name]
-        sprite_index = (self.animation_count //
-                        self.ANIMATION_DELAY) % len(sprites)
-        self.image = sprites[sprite_index]
-        self.animation_count += 1
-
-        self.rect = self.image.get_rect(topleft=(self.rect.x, self.rect.y))
-        self.mask = pygame.mask.from_surface(self.image)
-
-        if self.animation_count // self.ANIMATION_DELAY > len(sprites):
-            self.animation_count = 0
+from Classes.player import Player
+from Classes.enemy import Enemy
+from Classes.walking_enemy import WalkingEnemy
+from components.move_collide import collide, handle_move, handle_vertical_collision
 
 
 # Function to get background tiles and image
@@ -226,145 +44,231 @@ def get_background(name):
 
 
 # Function to draw game elements on the window
-def draw(window, background, bg_image, player, objects, offset_x):
+def draw(window, background, bg_image, player, enemy, objects, offset_x):
     for tile in background:
         window.blit(bg_image, tile)
 
     for obj in objects:
-        obj.draw(window, offset_x)
+        obj.draw(window, offset_x)\
 
     player.draw(window, offset_x)
-
+    enemy.draw(window, offset_x)
     pygame.display.update()
-
-# Function to check for vertical collisions 
-def handle_vertical_collision(player, objects, dy):
-    collided_objects = []
-    for obj in objects:
-        if pygame.sprite.collide_mask(player, obj):
-            if dy > 0:
-                player.rect.bottom = obj.rect.top
-                player.landed()
-            elif dy < 0:
-                player.rect.top = obj.rect.bottom
-                player.hit_head()
-
-            collided_objects.append(obj)
-
-    return collided_objects
-
-
-# Function to check for collisions between the player and objects
-def collide(player, objects, dx):
-    player.move(dx, 0)
-    player.update()
-    collided_object = None
-    for obj in objects:
-        if pygame.sprite.collide_mask(player, obj):
-            collided_object = obj
-            break 
-
-    player.move(-dx, 0)
-    player.update()
-    return collided_object
-
-
-# Function to handle player movement
-def handle_move(player, objects):
-    keys = pygame.key.get_pressed()
-
-    player.x_vel = 0
-    collide_left = collide(player, objects, -PLAYER_VEL * 2)
-    collide_right = collide(player, objects, PLAYER_VEL * 2)
-
-    if keys[pygame.K_LEFT] and not collide_left:
-        player.move_left(PLAYER_VEL)
-    if keys[pygame.K_RIGHT] and not collide_right:
-        player.move_right(PLAYER_VEL)
-
-    vertical_collide = handle_vertical_collision(player, objects, player.y_vel)
-    to_check = [collide_left, collide_right, *vertical_collide]
-
-    for obj in to_check:
-        if obj and obj.name == "fire":
-            player.make_hit()
 
 
 #MAIN GAME LOOP
 def main(window):
-    # Initialize clock, load background
-    clock = pygame.time.Clock()
-    background, bg_image = get_background("Blue.png")
+    #Start page
+    start_page = StartPage(WIDTH, HEIGHT)
+    current_state = "start"
 
-    # Set the block size for creating the platforms
-    block_size = 96
+    while True:
 
-    # Create player/position
-    player = Player(100, 100, 50, 50)
+        if current_state == "start":
+            next_state = start_page.update()
+            start_page.draw()
 
-    # Create a fire object and position it at the bottom of the screen
-    fire = Fire(100, HEIGHT - block_size - 64, 16, 32)
-    fire.on()
+        elif current_state == "main_game":
 
-    # Create the floor by generating blocks in a range
-    floor = [Block(i * block_size, HEIGHT - block_size, block_size)
-             for i in range(int(WIDTH * 2) // block_size)]
+            # Initialize clock, load background
+            clock = pygame.time.Clock()
+            background, bg_image = get_background("Blue.png")
 
-    # Create a list of objects including the floor and additional blocks and the fire object
-    objects = [*floor, Block(0, HEIGHT - block_size * 2, block_size),
-               Block(block_size * 3, HEIGHT - block_size * 4, block_size),
-               Block(block_size * 6, HEIGHT - block_size * 6, block_size),
-               Block(block_size * 9, HEIGHT - block_size * 4, block_size),
-               Block(block_size * 12, HEIGHT - block_size * 4, block_size),
-               Block(block_size * 15, HEIGHT - block_size * 4, block_size),
-               Block(block_size * 18, HEIGHT - block_size * 4, block_size),
-                fire]
+            # Set the block size for creating the platforms
+            block_size = 96
 
-    # Initialize the camera horizontal/vertical offset 
-    offset_x = 0
-    offset_y = 0
+            # Create player/position
+            player = Player(100, 100, 50, 50)
 
-    # Start the main game loop
-    run = True
-    while run:
-        # Limit the frame rate
-        clock.tick(FPS)
+            #walking_enemy = WalkingEnemy(100, HEIGHT - block_size - 128, 150, 150) 
 
-        # Event handling loop
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-                break
+            # ENEMIES
+            enemyList = []
+            # Create ENEMY objects and add them to the list
+            for i in range(5):  
+                x_position = (block_size * 1) + i * 100
+                enemy = Enemy(x_position, HEIGHT - block_size - 128, 150, 150) 
+                enemyList.append(enemy)
 
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and player.jump_count < 2:
-                    player.jump()
 
-        # Update player's position and animation
-        player.loop(FPS)
+            #Score initialization
+            score = player.points
 
-        # Update fire object's animation
-        fire.loop()
+            #FIRE TRAPS
+            # Create a fire object and position it at the bottom of the screen
+            fireList = []
+            # Create fire objects and add them to the list
+            for i in range(5):  
+                x_position = (block_size * 20.33) + i * 384  
+                fire = Fire(x_position, HEIGHT - block_size * 2.66, 16, 32)
+                fire.on()  # Turn on each fire object
+                fireList.append(fire)
+            fireList[1].rect.y = HEIGHT - block_size * 4.66
+            fireList[3].rect.y = HEIGHT - block_size * 4.66
+            fireList[4].rect.x = fireList[2].rect.x
+            fireList[4].rect.y = HEIGHT - block_size * 6.66
 
-        # Handle player movement and collisions with objects
-        handle_move(player, objects)
+            #POINTS
+            pointList = []
+            # Create fire objects and add them to the list
+            for i in range(5):  
+                x_position = (block_size * 20.17) + i * 384  
+                point = Point(x_position, HEIGHT - block_size * 2.66, 32, 128)
+                pointList.append(point)
+            for i in range(2):  
+                y_position = (HEIGHT - block_size - 72) 
+                point = Point(block_size * 41, y_position, 32, 128)
+                pointList.append(point)
+            pointList[0].rect.y = HEIGHT - block_size * 4.66
+            pointList[2].rect.y = HEIGHT - block_size * 4.66
+            pointList[4].rect.y = HEIGHT - block_size * 6.66
+            pointList[4].rect.x = pointList[3].rect.x
+            pointList[5].rect.y = HEIGHT - block_size * 5.8
 
-        # Draw the background, objects, and player on the window
-        draw(window, background, bg_image, player, objects, offset_x)
+            #Create final checkpoint to end level if you have collected all berries
+            checkpoint = Checkpoint(block_size * 93, HEIGHT - block_size - 128, 64, 64)
+            checkpointList = [checkpoint]
+            checkpoint.on()
 
-        # Define the width/height of the scroll area at the edges of the screen
-        scroll_area_width = 400
-        scroll_area_height = 200
+            # Create objects using the create_objects function
+            objects = create_objects(block_size, HEIGHT) + fireList + pointList + checkpointList
 
-        # Scroll the camera horizontally based on player's position
-        if ((player.rect.right - offset_x >= WIDTH - scroll_area_width) and player.x_vel > 0) or (
-                (player.rect.left - offset_x <= scroll_area_width) and player.x_vel < 0):
-            offset_x += player.x_vel 
+            # Initialize the camera horizontal/vertical offset 
+            offset_x = 0
+            offset_y = 0
 
-        # Scroll the camera vertically based on player's position *NOT FINISHED*
-        if ((player.rect.bottom >= HEIGHT - scroll_area_height) and player.y_vel > 0) or (
-        (player.rect.top <= scroll_area_height) and player.y_vel < 0):
-            offset_y += player.y_vel
+            # Create an instance of the Timer class with an initial value of 60 seconds
+            timer = Timer(0)
+
+            # Start the main game loop
+            run = True
+            while run:
+
+                # Limit the frame rate
+                clock.tick(FPS)
+
+                # Print timer.active for debugging
+                print("Timer Active:", timer.active)
+
+                #Update timer
+                if timer.active:
+                    timer.value += clock.get_time() / 1000  # Decrease timer
+
+
+                # Event handling loop
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        run = False
+                        pygame.quit()
+                        quit()
+
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_SPACE and player.jump_count < 2:
+                            player.jump()
+                        elif event.key == pygame.K_r:
+                            #Player Reset
+                            reset_game(player)
+
+                            #Window Reset
+                            window.fill((0, 0, 0))  
+                            pygame.display.flip()
+                            offset_x = 0
+                            draw(window, background, bg_image, player, enemy, objects, offset_x)
+                            print("Window reset")
+
+                            #Score reset
+                            player.score_reset()
+                    
+                            #Timer reset
+                            timer.value = timer.initial_value
+                            timer.active = False
+
+                # Update player/fire/points/enemy position and animation
+                player.loop(FPS)
+                for fire in fireList:
+                    fire.loop()
+                for point in pointList:
+                    point.loop()
+                for enemy in enemyList:
+                    enemy.loop()
+                checkpoint.loop()
+
+                # Handle player movement and collisions with objects
+                handle_move(player, objects, enemy)
+
+                # Draw the background, objects, and player on the window
+                draw(window, background, bg_image, player, enemy, objects, offset_x)
+
+                # Define the width/height of the scroll area at the edges of the screen
+                scroll_area_width = 400
+                scroll_area_height = 200  
+
+
+                # Scroll the camera horizontally based on player's position
+                if ((player.rect.right - offset_x >= WIDTH - scroll_area_width) and player.x_vel > 0) or (
+                        (player.rect.left - offset_x <= scroll_area_width) and player.x_vel < 0):
+                    offset_x += player.x_vel 
+
+                # Scroll the camera vertically based on player's position *NOT FINISHED*
+                if ((player.rect.bottom >= HEIGHT - scroll_area_height) and player.y_vel > 0) or (
+                (player.rect.top <= scroll_area_height) and player.y_vel < 0):
+                    offset_y += player.y_vel
+                
+                if player.is_alive:
+                    timer.start()
+
+                    #Checking to see if the player went off the bottom of the screen 
+                    if player.rect.bottom > HEIGHT + 100:
+                        player.die()
+
+                    #If player points are over a certain amount, you win 
+                    if player.won:
+                        font = pygame.font.Font(twoBitFont, 36)
+                        timer.stop()
+                        win_text1 = font.render("YOU WIN!", True, (255, 255, 255))
+                        win_text2 = font.render(f"FINISHED IN { int(timer.value) } SECONDS", True, (255, 255, 255))
+
+                        # Calculate the total height of the text surfaces
+                        total_height = win_text1.get_height() + win_text2.get_height()
+
+                        # Create a combined text surface
+                        combined_text_surface = pygame.Surface((max(win_text1.get_width(), win_text2.get_width()), total_height), pygame.SRCALPHA)
+                        combined_text_surface.fill((0, 0, 0, 0))  # Fill the background with a transparent color
+
+                        # Blit each line onto the combined text surface
+                        combined_text_surface.blit(win_text1, ((combined_text_surface.get_width() - win_text1.get_width()) // 2, 0))
+                        combined_text_surface.blit(win_text2, ((combined_text_surface.get_width() - win_text2.get_width()) // 2, win_text1.get_height()))
+
+                        window.blit(combined_text_surface, (WIDTH // 2 - combined_text_surface.get_width() // 2, HEIGHT // 2))
+                        pygame.display.update()
+                    
+                if not player.is_alive:
+                    font = pygame.font.Font(twoBitFont, 36)
+                    death_text = font.render("YOU DIED!", True, (255, 255, 255))
+                    window.blit(death_text, (WIDTH // 2 - death_text.get_width() // 2, HEIGHT // 2))
+                    pygame.display.update()
+                    pygame.time.delay(2000)
+
+                    #Player Reset
+                    reset_game(player)
+
+                    #Window Reset
+                    window.fill((0, 0, 0))  
+                    pygame.display.flip()
+                    offset_x = 0
+                    draw(window, background, bg_image, player, enemy, objects, offset_x)
+                    print("Window reset")
+
+                    #Score reset
+                    player.score_reset()
+                    
+                    #Timer reset
+                    timer.value = timer.initial_value
+                    timer.active = False
+
+        if next_state:
+            # Update the current game state
+            current_state = next_state  
 
 
     # Quit pygame and exit the game
