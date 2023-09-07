@@ -6,7 +6,7 @@ class Player(pygame.sprite.Sprite):
     COLOR = (255, 0, 0)
     GRAVITY = 2
     SPRITES = load_sprite_sheets("MainCharacters", "NinjaFrog", 32, 32, True)
-    ANIMATION_DELAY = 1
+    ANIMATION_DELAY = 2
 
     def __init__(self, x, y, width, height):
         super().__init__()

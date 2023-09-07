@@ -6,45 +6,57 @@ class Enemy(pygame.sprite.Sprite):
     COLOR = (0, 0, 255)
     GRAVITY = 1
     ANIMATION_DELAY = 3
-    SPRITES = load_sprite_sheets("Traps", "SpikeHead", 32, 32, True)
+    SPRITES = load_sprite_sheets("Traps", "SpikeHead", 48, 48, True)
 
-
-    def __init__(self, x, y, width, height):
+    def __init__(self, x, y, width, height, move_direction):
         super().__init__()
         self.rect = pygame.Rect(x, y, width, height)
-        self.y_vel = 0
+        self.x_vel = 0
         self.animation_count = 0
-        self.direction = "left"
+        self.direction = move_direction
         self.timer = 0
         self.name = "enemy"
 
-    def move(self, dx):
+    def move(self, dx, dy):
         self.rect.x += dx
+        self.rect.y += dy
 
     def loop(self):
         # Increment the timer
         self.timer += 1  
 
         # Check if it's time to change the movement direction
-        if self.timer >= 150: #Since game is running at 30 FPS, when timer is at 90 it means 3 seconds
+        if self.timer >= 270: #Since game is running at 30 FPS, when timer is at 90 it means 3 seconds
             if self.direction == "left":
                 self.direction = "right"  
-            else:
+            elif self.direction == "right":
                 self.direction = "left" 
+            elif self.direction == "up":
+                self.direction = "down"
+            elif self.direction == "down":
+                self.direction = "up"
             self.timer = 0  # Reset the timer
 
         if self.direction == "left":
-            self.y_vel = -self.GRAVITY
-        else:
-            self.y_vel = self.GRAVITY
-
-        self.move(self.y_vel)
+            self.x_vel = -3
+            self.y_vel = 0
+        elif self.direction == "right":
+            self.x_vel = 3
+            self.y_vel = 0
+        elif self.direction == "up":
+            self.x_vel = 0
+            self.y_vel = 1
+        elif self.direction == "down":
+            self.x_vel = 0
+            self.y_vel = -1
+        
+        self.move(self.x_vel, self.y_vel)
         self.update_sprite()
 
     def update_sprite(self):
         sprite_sheet = "idle"
          
-        sprite_sheet_name = sprite_sheet + "_" + self.direction
+        sprite_sheet_name = sprite_sheet + "_left"
         sprites = self.SPRITES[sprite_sheet_name]
 
         sprite_index = (self.animation_count //

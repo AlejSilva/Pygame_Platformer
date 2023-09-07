@@ -26,7 +26,7 @@ window = pygame.display.set_mode((WIDTH, HEIGHT))
 from Classes.player import Player
 from Classes.enemy import Enemy
 from Classes.walking_enemy import WalkingEnemy
-from components.move_collide import collide, handle_move, handle_vertical_collision
+from components.move_collide import collide, handle_move, handle_vertical_collision, removed_points
 
 
 # Function to get background tiles and image
@@ -44,7 +44,7 @@ def get_background(name):
 
 
 # Function to draw game elements on the window
-def draw(window, background, bg_image, player, enemy, objects, offset_x):
+def draw(window, background, bg_image, player, enemyList, objects, offset_x):
     for tile in background:
         window.blit(bg_image, tile)
 
@@ -52,7 +52,8 @@ def draw(window, background, bg_image, player, enemy, objects, offset_x):
         obj.draw(window, offset_x)\
 
     player.draw(window, offset_x)
-    enemy.draw(window, offset_x)
+    for enemy in enemyList:
+        enemy.draw(window, offset_x)
     pygame.display.update()
 
 
@@ -72,7 +73,7 @@ def main(window):
 
             # Initialize clock, load background
             clock = pygame.time.Clock()
-            background, bg_image = get_background("Blue.png")
+            background, bg_image = get_background("startBackground.jpg")
 
             # Set the block size for creating the platforms
             block_size = 96
@@ -84,18 +85,45 @@ def main(window):
 
             # ENEMIES
             enemyList = []
-            # Create ENEMY objects and add them to the list
-            for i in range(5):  
-                x_position = (block_size * 1) + i * 100
-                enemy = Enemy(x_position, HEIGHT - block_size - 128, 150, 150) 
-                enemyList.append(enemy)
 
+            # LEFT/RIGHT
+            for i in range(2):  
+                enemy = Enemy(block_size * 41, HEIGHT - block_size - 128, 150, 150, "left") 
+                enemyList.append(enemy)
+            enemyList[1].direction = "right"
+            #ENEMY Y POSITION LEFT/RIGHT
+            enemyList[0].rect.y = HEIGHT - block_size * 6.05
+            enemyList[1].rect.y = HEIGHT - block_size - 100
+            #ENEMY X POSITION LEFT/RIGHT
+            enemyList[0].rect.x = block_size * 45
+            enemyList[1].rect.x = block_size * 37
+
+            # UP/DOWN
+            for i in range(6):
+                enemy = Enemy(block_size * 59, 250, 150, 150, "up") 
+                enemyList.append(enemy)
+            #X POSITION
+            enemyList[3].rect.x = block_size * 63
+            enemyList[4].rect.x = block_size * 67
+            enemyList[5].rect.x = block_size * 72
+            enemyList[6].rect.x = block_size * 78
+            enemyList[7].rect.x = block_size * 81
+            #Y POSITION
+            enemyList[6].rect.y = 350
+            enemyList[2].rect.y = 650
+            enemyList[4].rect.y = 500
+            enemyList[7].rect.y = 350
+
+            #Starting direction
+            enemyList[2].direction = "down"
+            enemyList[4].direction = "down"
+            enemyList[6].direction = "down"
 
             #Score initialization
             score = player.points
 
             #FIRE TRAPS
-            # Create a fire object and position it at the bottom of the screen
+            # Create a fire object list
             fireList = []
             # Create fire objects and add them to the list
             for i in range(5):  
@@ -168,12 +196,14 @@ def main(window):
                         elif event.key == pygame.K_r:
                             #Player Reset
                             reset_game(player)
+                            objects.extend(removed_points)
+                            removed_points.clear() 
 
                             #Window Reset
                             window.fill((0, 0, 0))  
                             pygame.display.flip()
                             offset_x = 0
-                            draw(window, background, bg_image, player, enemy, objects, offset_x)
+                            draw(window, background, bg_image, player, enemyList, objects, offset_x)
                             print("Window reset")
 
                             #Score reset
@@ -194,10 +224,10 @@ def main(window):
                 checkpoint.loop()
 
                 # Handle player movement and collisions with objects
-                handle_move(player, objects, enemy)
+                handle_move(player, objects, enemyList)
 
                 # Draw the background, objects, and player on the window
-                draw(window, background, bg_image, player, enemy, objects, offset_x)
+                draw(window, background, bg_image, player, enemyList, objects, offset_x)
 
                 # Define the width/height of the scroll area at the edges of the screen
                 scroll_area_width = 400
@@ -209,10 +239,6 @@ def main(window):
                         (player.rect.left - offset_x <= scroll_area_width) and player.x_vel < 0):
                     offset_x += player.x_vel 
 
-                # Scroll the camera vertically based on player's position *NOT FINISHED*
-                if ((player.rect.bottom >= HEIGHT - scroll_area_height) and player.y_vel > 0) or (
-                (player.rect.top <= scroll_area_height) and player.y_vel < 0):
-                    offset_y += player.y_vel
                 
                 if player.is_alive:
                     timer.start()
@@ -241,6 +267,30 @@ def main(window):
 
                         window.blit(combined_text_surface, (WIDTH // 2 - combined_text_surface.get_width() // 2, HEIGHT // 2))
                         pygame.display.update()
+                        pygame.time.delay(5000)
+
+                        #Player Reset
+                        reset_game(player)
+
+                        #Window Reset
+                        window.fill((0, 0, 0))      
+                        pygame.display.flip()
+                        offset_x = 0
+                        draw(window, background, bg_image, player, enemyList, objects, offset_x)
+                        print("Window reset")
+
+                        #Score reset
+                        player.score_reset()
+
+                        #Point reset
+                        objects.extend(removed_points)
+                        removed_points.clear() 
+                        
+                        #Timer reset
+                        timer.value = timer.initial_value
+                        timer.active = False
+                        #Player win reset
+                        player.won = False
                     
                 if not player.is_alive:
                     font = pygame.font.Font(twoBitFont, 36)
@@ -252,11 +302,15 @@ def main(window):
                     #Player Reset
                     reset_game(player)
 
+                    #Point reset
+                    objects.extend(removed_points)
+                    removed_points.clear() 
+
                     #Window Reset
                     window.fill((0, 0, 0))  
                     pygame.display.flip()
                     offset_x = 0
-                    draw(window, background, bg_image, player, enemy, objects, offset_x)
+                    draw(window, background, bg_image, player, enemyList, objects, offset_x)
                     print("Window reset")
 
                     #Score reset
